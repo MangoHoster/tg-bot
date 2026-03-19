@@ -3,63 +3,66 @@ import sys
 import io
 import traceback
 import subprocess
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, ContextTypes
 
-API_ID = int(os.environ.get("API_ID", 12345))
-API_HASH = os.environ.get("API_HASH")
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID", 12345))
 
-bot = Client(
-    "my_bot",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
-
-async def send_output(message, output, filename="output.txt"):
+async def send_output(update: Update, context: ContextTypes.DEFAULT_TYPE, output: str, filename: str = "output.txt"):
     if len(output) > 4096:
         with io.BytesIO(str.encode(output)) as out_file:
             out_file.name = filename
-            await message.reply_document(
+            await update.message.reply_document(
                 document=out_file,
                 caption="Output is too long, sent as file."
             )
     else:
-        await message.reply_text(f"<pre>{output}</pre>")
+        await update.message.reply_text(f"<pre>{output}</pre>", parse_mode='HTML')
 
-@bot.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
+async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     button = [[InlineKeyboardButton("Source Code", url="https://github.com/MangoHoster/tg-bot")]]
-    await message.reply_text(
+    reply_markup = InlineKeyboardMarkup(button)
+    
+    await update.message.reply_text(
         "Hello I'm alive",
-        reply_markup=InlineKeyboardMarkup(button)
+        reply_markup=reply_markup
     )
 
-@bot.on_message(filters.command('sh') & filters.user(OWNER_ID))
-async def shell_command(client, message):
-    if len(message.text.split()) < 2:
-        return await message.reply("No command provided.")
+async def shell_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
     
-    cmd = message.text.split(maxsplit=1)[1]
-    msg = await message.reply("**Processing...**", quote=True)
+    if not context.args:
+        await update.message.reply_text("No command provided.")
+        return
+    
+    cmd = ' '.join(context.args)
+    msg = await update.message.reply_text("**Processing...**")
     
     try:
         shell_output = subprocess.getoutput(cmd)
         await msg.delete()
-        await send_output(message, shell_output, "shell.txt")
+        await send_output(update, context, shell_output, "shell.txt")
     except Exception as e:
         await msg.edit_text(f"Error: {e}")
 
-@bot.on_message(filters.command("eval") & filters.user(OWNER_ID))
-async def eval_command(client: Client, message: Message):
-    if len(message.text.split()) < 2:
-        await message.reply_text("Please provide code to evaluate!")
+async def eval_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
+    
+    if not context.args:
+        await update.message.reply_text("Please provide code to evaluate!")
         return
 
-    cmd = message.text.split(" ", 1)[1]
-    msg = await message.reply("**Processing...**", quote=True)
+    cmd = ' '.join(context.args)
+    msg = await update.message.reply_text("**Processing...**")
 
     old_stderr = sys.stderr
     old_stdout = sys.stdout
@@ -68,7 +71,7 @@ async def eval_command(client: Client, message: Message):
     stdout, stderr, exc = None, None, None
 
     try:
-        await aexec(cmd, client, message)
+        await aexec(cmd, context, update)
     except Exception:
         exc = traceback.format_exc()
     
@@ -88,15 +91,22 @@ async def eval_command(client: Client, message: Message):
         evaluation = "Success"
 
     await msg.delete()
-    await send_output(message, evaluation, "eval.txt")
+    await send_output(update, context, evaluation, "eval.txt")
 
-async def aexec(code, client, message):
+async def aexec(code: str, context: ContextTypes.DEFAULT_TYPE, update: Update):
     exec(
-        f'async def __ex(client, message): ' +
+        f'async def __ex(context, update): ' +
         ''.join(f'\n {line}' for line in code.split('\n'))
     )
-    return await locals()['__ex'](client, message)
+    return await locals()['__ex'](context, update)
 
-if __name__ == "__main__":
+def main():
+    application = Application.builder().token(BOT_TOKEN).build()
+    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("sh", shell_command))
+    application.add_handler(CommandHandler("eval", eval_command))
     print("Bot is starting...")
-    bot.run()
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
+
+if __name__ == '__main__':
+    main()
