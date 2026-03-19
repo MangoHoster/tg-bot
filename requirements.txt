@@ -1,2 +1,1 @@
-kurigram 
-tgcrypto
+python-telegram-bot
