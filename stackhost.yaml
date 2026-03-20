@@ -1,17 +1,21 @@
+# StackHost configuration file
+
+# Version: 2.0.0
+
 user:
   name: MangoHoster
-  github: tg-bot
+  github: MangoHoster/tg-bot
 
-language: "python"
-python_version: "3.13"
+runtime:
+  # Supported runtimes: python, node, go, rust, ruby, java, php, dotnet, elixir, perl, swift
+  image: python:3.11-slim
 
 commands:
+  package: ""  # No additional apt packages needed
   build:
-    - "pip install python-telegram-bot"
-  package:
-    - "nano inxi"
-  start:
-    - "python3 bot.py"
+    - pip install python-telegram-bot
+  start: python bot.py
 
-env:
-  - "ENVIRONMENT=production"
+repository:
+  branch: main
+  auto_deploy: true
