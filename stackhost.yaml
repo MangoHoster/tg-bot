@@ -1,0 +1,17 @@
+user:
+  name: MangoHoster
+  github: tg-bot
+
+language: "python"
+python_version: "3.13"
+
+commands:
+  build:
+    - "pip install python-telegram-bot"
+  package:
+    - "nano inxi"
+  start:
+    - "python3 bot.py"
+
+env:
+  - "ENVIRONMENT=production"
