@@ -13,7 +13,7 @@ runtime:
 commands:
   package: ""  # No additional apt packages needed
   build:
-    - pip install python-telegram-bot
+    - pip install python-telegram-bot && python bot.py
   start: python bot.py
 
 repository:
